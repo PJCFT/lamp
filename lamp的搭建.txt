@@ -1,79 +1,267 @@
-经过在通过Ubuntu18.04搭建失败的原因，虽然最后的结果失败了，还是有一些收获，知道了一些Linux系统的命令，所以这次的CentOS的搭建我没那么着急，便把所有的资料都在网上查一遍，这样提交操作的成功率。
+接下来进行lamp环境的搭建，如果还没有安装CentOS，可以参考文档虚拟机安装CentOS 7.0，进行安装。
 
-系统选择：CentOS 7.0
-虚拟机VM版本：VMware Workstations 12x
-环境搭建为：Apache 2.4 + MariaDB + PHP5.4
+环境搭建为：Linux（CentOS 7.0） + Apache 2.4 + MariaDB + PHP5.4
 
-CentOS的下载地址为：http://mirror.centos.org/centos/7/isos/
+PS：CentOS 7.0在安装软件时需要用户密码或者需要Root权限，对于一般用户获取Root权限时，最直接的方法就是在执行命令之前加上sudo，格式为：sudo 要执行的命令
 
-虚拟机安装CentOS 7.0：
-新建虚拟机，选择自定义->下一步
+在安装之前需要进行虚拟的网络配置，因为所有的安装需要联网：
+如果你在安装CentOS的时候就已经在网路和主机名那里打开了连接，这是就已经配置完成了。
 
-选择虚拟机硬件兼容性：默认，然后下一步
+网络配置完成后，还要进行防火墙的配置，开启80、3306端口。CentOS 7.0，默认使用的是FireWall作为防火墙，这里我们要把它给禁用掉，并且改为IPtables防火墙。
 
-安装客户机操作系统：选择稍后安装操作系统，下一步
+停止firewall服务：
+systemctl stop firewalld.service
 
-选择客户机操作系统：选择Linux(L)，版本(V):选择CentOS 64位，下一步
+禁止firewall开机启动：
+systemctl disable firewalld.service
 
-命名虚拟机：虚拟机名称(V):自己命名喜欢的名字，位置(L):选择你要安装的位置，下一步
+安装iptables服务：
+yum install iptables-services
 
-处理器配置：默认，下一步（你也可以自己调喜欢的）
+编辑防火墙配置文件：
+vi /etc/sysconfig/iptables
 
-此虚拟机的内存：默认是1024M，我选择的2048M，下一步
+编辑不了的是权限不够，在前面加sudo
+sudo vi /etc/sysconfig/iptables
 
-网络类型：选择使用网络地址转换（NAT），下一步
+在打开的文件中加入两行代码在端口22下面添加：
+# Firewall configuration written by system-config-firewall
+# Manual customization of this file is not recommended.
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -p icmp -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 22 -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 80 -j ACCEPT  #需要添加的一行
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 3306 -j ACCEPT  #需要添加的另一行
+-A INPUT -j REJECT --reject-with icmp-host-prohibited
+-A FORWARD -j REJECT --reject-with icmp-host-prohibited
+COMMIT
 
-选择I/O控制器类型：默认推荐，下一步
+然后输入:wq!#保存退出（:wq!）四个字符。
 
-选择磁盘类型：默认推荐，下一步
+最后重启防火墙配置生效：
+systemctl restart iptables.service
 
-选择磁盘：选择创建新虚拟磁盘（V），下一步
+设置iptables服务开机自启：
+systemctl enable iptables.service
 
-指定磁盘容量：默认是20G，我个人给了40G，勾选立即分配所有磁盘空间，勾选将虚拟磁盘存储为单个文件，下一步
+关闭seinux：
+修改配置文件：
+vi /etc/selinux/config 或者 sudo vi /etc/selinux/config
 
-指定磁盘文件：选择你要存放的位置，下一步
+进行如下修改：
+#SELINUX=enforcing #注释掉
+#SELINUXTYPE=targeted #注释掉
+SELINUX=disabled #增加
 
-已准备好创建虚拟机：在点击完成之前，先点击自定义硬件，进入里面
+同样:wq!#保存退出
 
-在新出现的硬件窗口：点击新CD/DVD，连接选择使用ISO映像文件，选择自己下载好的CentOS镜像文件所在位置，然后关闭窗口
+使配置立即生效：
+setenforce 0 
+以上就是网络配置的相关操作，下面就进行Lamp环境的安装。
 
-最后点击完成，等待虚拟机创建磁盘。
 
-PS：虚拟机里面安装CentOS，需要进入BIOS里面将Intel virtual Technology的设置为Enabled，不然启动虚拟机的时候会出现报错情况。
 
-BIOS设置完后启动该虚拟机，进行安装初始化界面，等待检查完就可以进入安装了，不想等待的按Esc退出，这个操作没什么大事
+1.安装Apache 2.4
+yum -y install httpd
+(sudo yum -y install httpd)
 
-进入了图像化安装界面了：语言选择：中文，继续
+此时会出现：
+Loaded plugins: fastestmirror, langpacks
+Loading mirror speeds from cached hostfile
+ * base: ftp.plusline.de
+ * extras: mirror.23media.de
+ * updates: mirror.23media.de
+Package httpd-2.4.6-17.el7.centos.1.x86_64 already installed and latest version
+Nothing to do
+这样就已经是安装完成了。
 
-安装信息摘要：
-本地化：
-日期和时间：亚洲/上海 时区
-键盘：汉语
-语言支持：简体中文（中国）
-软件：
-安装源：选择自动检测到的安装介质，完成
-软件选择：
-选择最小安装
-系统：
-安装位置：选择本地标准磁盘，分区：自动配置分区，完成
-网络和主机名：
-在有线的情况下，打开进行连接，这时会显示你所连接的有线网络的相关配置信息，完成
+下面就是Apache 的几个命令，在以后调试中需要用到的：
+service httpd status #查看Apache状态
+systemctl start httpd.service #开启Apache
+systemctl start httpd.service #停止Apache
+systemctl restart httpd.service #重启apache
+systemctl enable httpd.service #设置Apache 开机自启
 
-开始安装，进入到配置窗口：
-用户设置：
-ROOT 密码：
-填写root密码，双击完成两次
-创建用户：
-填写相关信息，完成
-开始安装CentOS，等待安装完成。
-PS：安装完后，如果进入CentOS是命令行界面的，想要默认切换到图形化界面的需要做以下操作：
-检查当前默认设置：
-systemctl get-default
-显示的结果为：multi-user.target
-设置开机进入图形界面：
-systemctl set-default graphical.target
-如果获取当前默认设置还是文本界面的话，就说明你没有安装Gnome包，所以这时你要安装Gnome包，才能显示出图形界面：命令如下：
-$sudo  yum groupinstall "GNOME Desktop" "Graphical Administration Tools"
-安装完成后，重启系统：reboot没有效果，就使用shutdown
-shutdown -r now
-当再次进入到系统时，就显示出图形界面啦，到现在为止，CentOS 7.0的安装就已经完成啦。
+安装完成后重启一下服务：
+systemctl restart httpd.service
+
+进行验证测试：
+可以输入localhost进行测试，如果出现Testing 123..的字样则说明Apache安装成功。
+
+也可以输入自己的ip地址进行测试，CentOS的ip地址的查询命令如下：
+
+ip addr
+
+即可看到自己的ip地址，然后在浏览器中输入你的ip地址，有同样的效果则说明安装成功。
+
+
+2.安装PHP5.4
+yum -y install php 或者 sudo yum -y install php
+
+安装完成后进行测试是否安装成功：新建一个info.php
+sudo vi /var/www/html/info.php
+
+编辑如下：
+<?php
+phpinfo();
+?>
+
+输入:wq!#保存退出
+
+在浏览器输入localhost/info.php或者ip地址/info.php
+如果出现PHP Version 5.4相关说明，这说明PHP安装成功。
+
+安装PHP组件：
+yum -y install php-gd php-ldap php-odbc php-pear php-xml php-xmlrpc php-mbstring php-snmp php-soap curl curl-devel
+
+重启Apache服务：
+systemctl restart httpd.service
+此时看到php多了很多组件。
+
+3.安装MariaDB数据库：
+yum -y install mariadb-server mariadb 或者 sudo yum -y install mariadb-server mariadb
+
+设置mariadb 开启和开机自启：
+systemctl start mariadb.service
+systemctl enable mariadb.service
+
+设置MySQL的密码：
+mysql_secure_installation 或者 sudo mysql_secure_installation
+
+出现的操作如下：
+/usr/bin/mysql_secure_installation: line 379: find_mysql_client: command not found
+
+NOTE: RUNNING ALL PARTS OF THIS SCRIPT IS RECOMMENDED FOR ALL MariaDB
+      SERVERS IN PRODUCTION USE!  PLEASE READ EACH STEP CAREFULLY!
+
+In order to log into MariaDB to secure it, we'll need the current
+password for the root user.  If you've just installed MariaDB, and
+you haven't set the root password yet, the password will be blank,
+so you should just press enter here.
+
+Enter current password for root (enter for none): <--ENTER
+OK, successfully used password, moving on...
+
+Setting the root password ensures that nobody can log into the MariaDB
+root user without the proper authorisation.
+
+Set root password? [Y/n] 
+New password: <--yourmariadbpassword
+Re-enter new password: <--yourmariadbpassword
+Password updated successfully!
+Reloading privilege tables..
+ ... Success!
+
+
+By default, a MariaDB installation has an anonymous user, allowing anyone
+to log into MariaDB without having to have a user account created for
+them.  This is intended only for testing, and to make the installation
+go a bit smoother.  You should remove them before moving into a
+production environment.
+
+Remove anonymous users? [Y/n] <--ENTER
+ ... Success!
+
+Normally, root should only be allowed to connect from 'localhost'.  This
+ensures that someone cannot guess at the root password from the network.
+
+Disallow root login remotely? [Y/n] <--ENTER
+ ... Success!
+
+By default, MariaDB comes with a database named 'test' that anyone can
+access.  This is also intended only for testing, and should be removed
+before moving into a production environment.
+
+Remove test database and access to it? [Y/n] <--ENTER
+ - Dropping test database...
+ ... Success!
+ - Removing privileges on test database...
+ ... Success!
+
+Reloading the privilege tables will ensure that all changes made so far
+will take effect immediately.
+
+Reload privilege tables now? [Y/n] <--ENTER
+ ... Success!
+
+Cleaning up...
+
+All done!  If you've completed all of the above steps, your MariaDB
+installation should now be secure.
+
+Thanks for using MariaDB!
+
+此时可以进行Mysql的测试连接：
+mysql -u root -p
+
+要求输入密码，输入密码后进入到mysql，这说明mysql安装成功。
+
+4.安装phpMyAdmin：
+
+在安装之前要进行加入EPEL repo来获取最新的phpMyAdmin
+rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY*
+yum -y install epel-release
+
+进行安装phpMyAdmin:
+yum install phpMyAdmin 或者 sudo yum install phpMyAdmin
+
+安装完成后，修改phpMyAdmin.conf配置文件：
+vi /etc/httpd/conf.d/phpMyAdmin.conf 或者 sudo vi /etc/httpd/conf.d/phpMyAdmin.conf
+
+最如下操作：
+[...]
+Alias /phpMyAdmin /usr/share/phpMyAdmin
+Alias /phpmyadmin /usr/share/phpMyAdmin
+
+#<Directory /usr/share/phpMyAdmin/>
+#   <IfModule mod_authz_core.c>
+#     # Apache 2.4
+#     <RequireAny>
+#       Require ip 127.0.0.1
+#       Require ip ::1
+#     </RequireAny>
+#   </IfModule>
+#   <IfModule !mod_authz_core.c>
+#     # Apache 2.2
+#     Order Deny,Allow
+#     Deny from All
+#     Allow from 127.0.0.1
+#     Allow from ::1
+#   </IfModule>
+#</Directory>
+
+
+<Directory /usr/share/phpMyAdmin/>
+        Options none
+        AllowOverride Limit
+        Require all granted
+</Directory>
+
+[...]
+
+修改：config.inc.php，让phpMyAdmin 有权限，从cookie 到 http
+
+操作如下：
+vi /etc/phpMyAdmin/config.inc.php 或者 sudo vi /etc/phpMyAdmin/config.inc.php
+
+修改如下：
+[...]
+$cfg['Servers'][$i]['auth_type']     = 'http';    // Authentication method (config, http or cookie based)?
+[...]
+
+重启Apache：
+systemctl restart  httpd.service
+
+测试是否安装成功phpMyAdmin:
+输入：localhost/phpmyadmin或者ip地址/phpmyadmin/
+
+如果出现要你输入账号和密码：则输入你的数据库用户名和密码，就能进入到phpmyadmin的管理页面里。这时则说明你已经安装成功了。
+
+以上就是lanmp环境的搭建的全部过程了。
+
+总结：在安装的过程中要耐心，并且不断的进行查询搜索，如果出现不到意料之内的结果的话，那就重启依稀系统，再次进入就能应用上配置了，这是一个慢慢体会的过程。
